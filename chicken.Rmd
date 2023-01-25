@@ -1,0 +1,455 @@
+---
+title: ""
+output:
+    pdf_document:
+       includes:
+         in_header: preamble-latex.tex
+    html_document:
+       includes:
+         before_body: preamble-mathjax.tex
+---
+
+
+\renewcommand{\P}{\mathds{P}}
+ 
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(out.width = "70%", out.height="45%", fig.align="center", warning=FALSE, message=FALSE)
+knitr::opts_knit$set(global.par = TRUE,kable.force.latex = TRUE)
+asdf <- par(cex.main=1.5,cex.lab=1.5,cex.axis=1.5,pch=16,lwd=1.5)
+par(asdf)
+library(ggplot2)
+library(dplyr)
+library(ggfortify)
+library(ISLR)
+library(glmnet)
+library(gridExtra)
+library(expm)
+library(GGally)
+library(caret)
+library(modelr)
+library(olsrr)
+```
+
+# Abalone Data (Example Analysis)
+
+The age of abalone is determined by cutting the shell through the cone, staining it, and counting the number of rings through a microscope -- a boring and time-consuming task. Other measurements, which are easier to obtain, are used to predict the age. Further information, such as weather patterns and location (hence food availability) may be required to solve the problem.
+
+## Here
+
+## Predictors
+
+| Name                 |		Data Type  |	Meas.  |	Description
+|:--------------------:|:-------------:|:-------:|:--------------------------
+|	GallusBreed          |		nominal    |	type   |		M or A
+|	Day                  |	continuous   |	day    |	Longest shell measurement
+|	Age                  |	continuous   |	year   |	perpendicular to length
+|	GallusWeight         |	continuous   |	grams  |	with meat in shell
+|	GallusEggColor       |	continuous   |	color  |	whole abalone
+|	GallusEggWeight      |	continuous   |  grams  |	weight of meat
+|	AmountOfFeed         |	continuous   |grams/day|	gut weight (after bleeding)
+|	EggsPerDay           |	continuous   |	number |	after being dried
+|	GallusCombType       |	  nominal    |	type   |	after being dried
+|	SunLightExposure     |  continuous   |	hr/day |	after being dried
+|	GallusClass          |	continuous   |	grams  |	after being dried
+|	GallusLegShanksColor |  continuous   |	grams  |	after being dried
+|	GallusBeakColor      |	continuous   |	grams  |	after being dried
+|	GallusEarlLobesColor |	continuous   |	grams  |	after being dried
+|	GallusPlumage        |	continuous   |	grams  |	after being dried
+
+
+
+## Goal:
+
+Predict \texttt{Age}, a value between 0 and 100 which indicates how popular the song is (relative number of plays of the song compared to some baseline, turned into percent).
+
+\newpage
+
+
+
+
+# Directory Structure
+
+<div style="width:300px; height:200px">
+![]("directory_structure.png")
+</div>
+
+
+## Load Data
+
+```{r}
+chicken_train_full <- read.csv("C:/Users/Chris/OneDrive/Documents/School/STA 4320/Project/chicken_train.csv")
+
+set.seed(4320)
+train_index <- createDataPartition(chicken_train_full$GallusBreed,
+                                   times = 1,
+                                   p = 0.7,
+                                   list = FALSE)
+chicken_train <- chicken_train_full[train_index,]
+chicken_test <- chicken_train_full[-train_index,]
+
+names(chicken_test)
+names(chicken_train)
+```
+
+## Initial Observations
+
+```{r}
+chicken_train <- na.omit(chicken_train)
+bp <- chicken_train %>% select(GallusBreed, GallusEggColor, GallusCombType,
+        GallusClass, GallusLegShanksColor, GallusBeakColor,
+        GallusEarLobesColor, GallusPlumage)
+sp <- chicken_train %>% select(Day, Age, GallusEggWeight, AmountOfFeed, EggsPerDay,
+        SunLightExposure
+        )
+
+p <- ggplot(chicken_train, aes(y=(GallusEggWeight)))
+p1 <- p + geom_boxplot(aes(x=GallusBreed))
+p2 <- p + geom_point(aes(x=Day))
+p3 <- p + geom_point(aes(x=Age))
+p4 <- p + geom_point(aes(x=GallusWeight))
+p5 <- p + geom_boxplot(aes(x=GallusEggColor))
+p6 <- p + geom_point(aes(x=AmountOfFeed))
+p7 <- p + geom_point(aes(x=EggsPerDay))
+p8 <- p + geom_boxplot(aes(x=GallusCombType))
+p9 <- p + geom_point(aes(x=SunLightExposure))
+p10 <- p + geom_boxplot(aes(x=GallusClass))
+p11 <- p + geom_boxplot(aes(x=GallusLegShanksColor))
+p12 <- p + geom_boxplot(aes(x=GallusBeakColor))
+p13 <- p + geom_boxplot(aes(x=GallusEarLobesColor))
+p14 <- p + geom_boxplot(aes(x=GallusPlumage))
+
+
+grid.arrange(p1,p2,p3,p4,p5,p6,p7,p8,ncol=2)
+grid.arrange(p9,p10,p11,p12,ncol=2)
+grid.arrange(p13,p14)
+```
+```{r}
+p <- ggplot(chicken_train, aes(y=(sqrt(GallusEggWeight))))
+p1 <- p + geom_boxplot(aes(x=GallusBreed))
+p2 <- p + geom_point(aes(x=Day))
+p3 <- p + geom_point(aes(x=Age))
+p4 <- p + geom_point(aes(x=GallusWeight))
+p5 <- p + geom_boxplot(aes(x=GallusEggColor))
+p6 <- p + geom_point(aes(x=AmountOfFeed))
+p7 <- p + geom_point(aes(x=EggsPerDay))
+p8 <- p + geom_boxplot(aes(x=GallusCombType))
+p9 <- p + geom_point(aes(x=SunLightExposure))
+p10 <- p + geom_boxplot(aes(x=GallusClass))
+p11 <- p + geom_boxplot(aes(x=GallusLegShanksColor))
+p12 <- p + geom_boxplot(aes(x=GallusBeakColor))
+p13 <- p + geom_boxplot(aes(x=GallusEarLobesColor))
+p14 <- p + geom_boxplot(aes(x=GallusPlumage))
+
+
+grid.arrange(p1,p2,p3,p4,p5,p6,p7,p8,ncol=2)
+grid.arrange(p9,p10,p11,p12,ncol=2)
+grid.arrange(p13,p14)
+```
+
+
+```{r}
+p <- ggplot(chicken_train, aes(y=log(GallusEggWeight)))
+p1 <- p + geom_boxplot(aes(x=GallusBreed))
+p2 <- p + geom_point(aes(x=Day))
+p3 <- p + geom_point(aes(x=Age))
+p4 <- p + geom_point(aes(x=GallusWeight))
+p5 <- p + geom_boxplot(aes(x=GallusEggColor))
+p6 <- p + geom_point(aes(x=AmountOfFeed))
+p7 <- p + geom_point(aes(x=EggsPerDay))
+p8 <- p + geom_boxplot(aes(x=GallusCombType))
+p9 <- p + geom_point(aes(x=SunLightExposure))
+p10 <- p + geom_boxplot(aes(x=GallusClass))
+p11 <- p + geom_boxplot(aes(x=GallusLegShanksColor))
+p12 <- p + geom_boxplot(aes(x=GallusBeakColor))
+p13 <- p + geom_boxplot(aes(x=GallusEarLobesColor))
+p14 <- p + geom_boxplot(aes(x=GallusPlumage))
+
+
+grid.arrange(p1,p2,p3,p4,p5,p6,p7,p8,ncol=2)
+grid.arrange(p9,p10,p11,p12,p13,ncol=2)
+grid.arrange(p14)
+```
+```{r}
+fit <- lm(log(GallusEggWeight) ~ . - ID, data = chicken_train)
+autoplot(fit)
+
+fit <- lm(tan(GallusEggWeight) ~ . - ID, data = chicken_train)
+autoplot(fit)
+
+fit <- lm(sin(GallusEggWeight) ~ . - ID, data = chicken_train)
+autoplot(fit)
+```
+
+```{r}
+p <- ggplot(chicken_train, aes(y=sin(GallusEggWeight), color = GallusBreed))
+p1 <- p + geom_jitter(aes(x=Day))
+p2 <- p + geom_jitter(aes(x=Age))
+p3 <- p + geom_jitter(aes(x=GallusWeight))
+p4 <- p + geom_jitter(aes(x=AmountOfFeed))
+p5 <- p + geom_jitter(aes(x=EggsPerDay))
+p6 <- p + geom_jitter(aes(x=SunLightExposure))
+grid.arrange(p1,p2,p3,p4,p5,p6,ncol=2)
+```
+
+
+
+```{r}
+cv_control <- trainControl(
+  method = "LOOCV"
+)
+m0 <- train(GallusEggWeight ~ . -ID,
+            data = chicken_train,
+            trControl = cv_control,
+            method = "lm")
+
+lambda_grid <- 10^(seq(-1,4,length=100))
+m_r <- train(GallusEggWeight ~ . - ID,
+             data = chicken_train,
+             method = "glmnet",
+             tuneGrid = expand.grid(alpha = 0,
+                                    lambda = 0.2848036),
+             trControl = cv_control)
+#p1 <- plot(m_r, xTrans=log10, main="Ridge")
+
+lambda_grid2 <- 10^(seq(-5,1,length=100))
+
+m_l <- train(GallusEggWeight ~ . - ID,
+             data = chicken_train,
+             method = "glmnet",
+             tuneGrid = expand.grid(alpha = 1,
+                                    lambda = 0.06579332),
+             trControl = cv_control)
+#p2 <- plot(m_l, xTrans=log10, main="Lasso")
+#grid.arrange(p1,p2, ncol=2)
+```
+
+```{r}
+rbind(
+  c("m_r", m_r$results %>% filter(lambda == m_r$best$lambda)),
+  c("m_l", m_l$results %>% filter(lambda == m_l$best$lambda))
+)
+```
+
+
+```{r}
+chicken_train_res <- chicken_train %>% spread_residuals(m0)
+
+```
+```{r}
+p <- ggplot(chicken_train_res, aes(y=m0, color = GallusBreed))
+p1 <- p + geom_jitter(aes(x=Day)) + facet_wrap(vars(GallusBreed))
+p2 <- p + geom_jitter(aes(x=Age)) + facet_wrap(vars(GallusBreed))
+p3 <- p + geom_jitter(aes(x=GallusWeight)) + facet_wrap(vars(GallusBreed))
+p4 <- p + geom_jitter(aes(x=AmountOfFeed)) + facet_wrap(vars(GallusBreed))
+p5 <- p + geom_jitter(aes(x=EggsPerDay)) + facet_wrap(vars(GallusBreed))
+p6 <- p + geom_jitter(aes(x=SunLightExposure)) + facet_wrap(vars(GallusBreed))
+grid.arrange(p1,p2)
+grid.arrange(p3,p4)
+grid.arrange(p5,p6)
+```
+```{r}
+lambda_grid <- 10^(seq(-1,4,length=100))
+m_r2 <- train(GallusEggWeight ~ (. - ID) * (. - ID),
+             data = chicken_train,
+             method = "glmnet",
+             tuneGrid = expand.grid(alpha = 0,
+                                    lambda = 2.595024),
+             trControl = cv_control)
+#p1 <- plot(m_r2, xTrans=log10, main="Ridge")
+
+lambda_grid2 <- 10^(seq(-5,1,length=100))
+
+m_l2 <- train(GallusEggWeight ~ (. - ID) * (. - ID),
+             data = chicken_train_full,
+             method = "glmnet",
+             tuneGrid = expand.grid(alpha = 1,
+                                    lambda = 0.1321941),
+             trControl = cv_control)
+#p2 <- plot(m_l2, xTrans=log10, main="Lasso")
+#grid.arrange(p1,p2,ncol=2)
+```
+```{r}
+rbind(
+  c("m_r2", m_r2$results %>% filter(lambda == m_r2$best$lambda)),
+  c("m_l2", m_l2$results %>% filter(lambda == m_l2$best$lambda))
+)
+```
+
+```{r}
+coef(m_l2$finalModel, m_l2$bestTune$lambda)
+```
+```{r}
+#m_lasso <- train(GallusEggWeight ~ GallusEarLobesColor*GallusPlumage +
+#                   GallusBeakColor*GallusPlumage +
+#                   GallusLegShanksColor*GallusBeakColor +
+#                   GallusLegShanksColor*GallusPlumage +
+#                   GallusBeakColor*GallusEarLobesColor +
+#                   GallusCombType + GallusBeakColor +
+#                   GallusPlumage + GallusBreed*Day +
+#                   GallusBreed*GallusWeight +
+#                   Day*GallusCombType + Day*GallusLegShanksColor +
+#                   Age*GallusPlumage +
+#                   GallusWeight*GallusEggColor +
+#                   GallusWeight*EggsPerDay + GallusWeight*GallusCombType +
+#                   GallusWeight*GallusEarLobesColor +
+#                   GallusWeight*GallusPlumage +
+#                   GallusEggColor*AmountOfFeed +
+#                   GallusEggColor*GallusLegShanksColor +
+#                   GallusEggColor*GallusEarLobesColor +
+#                   GallusEggColor*GallusPlumage +
+#                   AmountOfFeed*GallusBeakColor +
+#                   EggsPerDay*GallusPlumage +
+#                   SunLightExposure*GallusPlumage,
+#                 data = chicken_train,
+#                 method = "lm",
+#                 trControl = cv_control
+#                   )
+
+m_lasso <- lm(GallusEggWeight ~
+                   GallusCombType + GallusBreed*Day +
+                   GallusBreed*GallusWeight +
+                   Day*GallusCombType +
+                   GallusWeight*GallusEggColor +
+                   GallusWeight*EggsPerDay + GallusWeight*GallusCombType +
+                   GallusEggColor*AmountOfFeed +
+                   AmountOfFeed*SunLightExposure +
+                   EggsPerDay*Age +
+                   SunLightExposure*GallusBreed,
+                 data = chicken_train)
+```
+
+
+```{r}
+full <- lm(GallusEggWeight ~ (.-ID)*(.-ID), data = chicken_train)
+
+mFS_res <- ols_step_forward_aic(full)
+mFS_res
+autoplot(mFS_res$model)
+```
+
+
+```{r}
+mFS <- mFS_res$model
+
+autoplot(mFS)
+```
+
+
+## Check for transforms
+
+### Plots
+
+```{r}
+chicken_train_res <- chicken_train %>% spread_residuals(m_lasso)
+p <- ggplot(chicken_train_res, aes(y=(m_lasso)))
+p1 <- p + geom_boxplot(aes(x=GallusBreed))
+p2 <- p + geom_point(aes(x=Day))
+p3 <- p + geom_point(aes(x=Age))
+p4 <- p + geom_point(aes(x=GallusWeight))
+p5 <- p + geom_boxplot(aes(x=GallusEggColor))
+p6 <- p + geom_point(aes(x=AmountOfFeed))
+p7 <- p + geom_point(aes(x=EggsPerDay))
+p8 <- p + geom_boxplot(aes(x=GallusCombType))
+p9 <- p + geom_point(aes(x=SunLightExposure))
+p10 <- p + geom_boxplot(aes(x=GallusClass))
+p11 <- p + geom_boxplot(aes(x=GallusLegShanksColor))
+p12 <- p + geom_boxplot(aes(x=GallusBeakColor))
+p13 <- p + geom_boxplot(aes(x=GallusEarLobesColor))
+p14 <- p + geom_boxplot(aes(x=GallusPlumage))
+
+
+grid.arrange(p1,p2,p3,p4,p5,p6,p7,p8,ncol=2)
+grid.arrange(p9,p10,p11,p12,p13,ncol=2)
+grid.arrange(p14)
+
+```
+
+```{r}
+chicken_train_res <- chicken_train %>% spread_predictions(m0, m1, m_r, m_r2, m_l, m_l2, m_lasso, mFS)
+```
+
+```{r}
+rbind(
+  c("m0",chicken_train_res %>% yardstick::rmse(truth=GallusEggWeight, estimate = m0)),
+  c("m1",chicken_train_res %>% yardstick::rmse(truth=GallusEggWeight, estimate = m1)),
+  c("m_r",chicken_train_res %>% yardstick::rmse(truth=GallusEggWeight, estimate = m_r)),
+  c("m_r2",chicken_train_res %>% yardstick::rmse(truth=GallusEggWeight, estimate = m_r2)),
+  c("m_l",chicken_train_res %>% yardstick::rmse(truth=GallusEggWeight, estimate = m_l)),
+  c("m_l2",chicken_train_res %>% yardstick::rmse(truth=GallusEggWeight, estimate = m_l2)),
+  c("m_lasso",chicken_train_res %>% yardstick::rmse(truth=GallusEggWeight, estimate = m_lasso)),
+  c("mFS",chicken_train_res %>% yardstick::rmse(truth=GallusEggWeight, estimate = mFS))
+)
+
+
+```
+
+
+```{r}
+chicken_test_res <- chicken_test %>% 
+  spread_predictions(m0, m1, m_r, m_r2, m_l, m_l2, m_lasso, mFS)
+```
+
+```{r}
+rbind(
+  c("m0",chicken_test_res %>% yardstick::rmse(truth=GallusEggWeight, estimate = m0)),
+  c("m1",chicken_test_res %>% yardstick::rmse(truth=GallusEggWeight, estimate = m1)),
+  c("m_r",chicken_test_res %>% yardstick::rmse(truth=GallusEggWeight, estimate = m_r)),
+  c("m_r2",chicken_test_res %>% yardstick::rmse(truth=GallusEggWeight, estimate = m_r2)),
+  c("m_l",chicken_test_res %>% yardstick::rmse(truth=GallusEggWeight, estimate = m_l)),
+  c("m_l2",chicken_test_res %>% yardstick::rmse(truth=GallusEggWeight, estimate = m_l2)),
+  c("m_lasso",chicken_test_res %>% yardstick::rmse(truth=GallusEggWeight, estimate = m_lasso)),
+  c("mFS",chicken_test_res %>% yardstick::rmse(truth=GallusEggWeight, estimate = mFS))
+)
+
+rbind(
+  c("m0",chicken_test_res %>% yardstick::rsq(truth=GallusEggWeight, estimate = m0)),
+  c("m1",chicken_test_res %>% yardstick::rsq(truth=GallusEggWeight, estimate = m1)),
+  c("m_r",chicken_test_res %>% yardstick::rsq(truth=GallusEggWeight, estimate = m_r)),
+  c("m_r2",chicken_test_res %>% yardstick::rsq(truth=GallusEggWeight, estimate = m_r2)),
+  c("m_l",chicken_test_res %>% yardstick::rsq(truth=GallusEggWeight, estimate = m_l)),
+  c("m_l2",chicken_test_res %>% yardstick::rsq(truth=GallusEggWeight, estimate = m_l2)),
+  c("m_lasso",chicken_test_res %>% yardstick::rsq(truth=GallusEggWeight, estimate = m_lasso)),
+  c("mFS",chicken_test_res %>% yardstick::rsq(truth=GallusEggWeight, estimate = mFS))
+)
+
+rbind(
+  c("m0",chicken_test_res %>% yardstick::mae(truth=GallusEggWeight, estimate = m0)),
+  c("m1",chicken_test_res %>% yardstick::mae(truth=GallusEggWeight, estimate = m1)),
+  c("m_r",chicken_test_res %>% yardstick::mae(truth=GallusEggWeight, estimate = m_r)),
+  c("m_r2",chicken_test_res %>% yardstick::mae(truth=GallusEggWeight, estimate = m_r2)),
+  c("m_l",chicken_test_res %>% yardstick::mae(truth=GallusEggWeight, estimate = m_l)),
+  c("m_l2",chicken_test_res %>% yardstick::mae(truth=GallusEggWeight, estimate = m_l2)),
+  c("m_lasso",chicken_test_res %>% yardstick::mae(truth=GallusEggWeight, estimate = m_lasso)),
+  c("mFS",chicken_test_res %>% yardstick::mae(truth=GallusEggWeight, estimate = mFS))
+)
+```
+
+
+
+```{r}
+m_lasso <- lm(GallusEggWeight ~
+                   GallusCombType + GallusBreed*Day +
+                   GallusBreed*GallusWeight +
+                   Day*GallusCombType,
+                   data = chicken_train_full)
+
+```
+
+```{r}
+chicken_full_res <- chicken_train_full %>% 
+  spread_predictions(m_lasso)
+rbind(
+  c("m_lasso",chicken_full_res %>% yardstick::rmse(truth=GallusEggWeight, estimate = m_lasso)),
+  c("m_lasso",chicken_full_res %>% yardstick::rsq(truth=GallusEggWeight, estimate = m_lasso)),
+  c("m_lasso",chicken_full_res %>% yardstick::mae(truth=GallusEggWeight, estimate = m_lasso))
+)
+```
+
+```{r}
+test_submission <- read.csv("chicken_test.csv")
+test_submission <- test_submission %>% spread_predictions(m_lasso)
+test_submission <- test_submission %>% mutate(GallusEggWeight = m_lasso)
+write.csv(test_submission, "test_submission.csv")
+```
+
+
